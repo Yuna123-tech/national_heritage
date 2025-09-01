@@ -176,19 +176,27 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    // Always get a fresh context
     const context = canvas.getContext('2d');
     if (!context) return;
     contextRef.current = context;
 
     const handleResize = () => {
-      const scale = window.devicePixelRatio;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * scale;
-      canvas.height = rect.height * scale;
-      context.scale(scale, scale);
-      context.lineCap = 'round';
-      context.strokeStyle = colorRef.current;
-      context.lineWidth = brushSizeRef.current;
+        const scale = window.devicePixelRatio;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * scale;
+        canvas.height = rect.height * scale;
+        
+        // Context properties need to be reset after resizing
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.scale(scale, scale);
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = colorRef.current;
+            ctx.lineWidth = brushSizeRef.current;
+            contextRef.current = ctx; // update the ref with the new context
+        }
     };
 
     handleResize();
@@ -203,53 +211,63 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
     }
   }, [color, brushSize]);
 
-  const getEventPosition = useCallback((event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    let clientX: number, clientY: number;
-    if ('touches' in event.nativeEvent) {
-      if (event.nativeEvent.touches.length === 0) return null;
-      clientX = event.nativeEvent.touches[0].clientX;
-      clientY = event.nativeEvent.touches[0].clientY;
-    } else {
-      clientX = (event as React.MouseEvent).nativeEvent.clientX;
-      clientY = (event as React.MouseEvent).nativeEvent.clientY;
-    }
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  }, []);
-
-  const startDrawing = useCallback((event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // --- MOUSE EVENT HANDLERS ---
+  const startDrawingMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const context = contextRef.current;
     if (!context) return;
-    const pos = getEventPosition(event);
-    if (!pos) return;
+    const { offsetX, offsetY } = event.nativeEvent;
     context.beginPath();
-    context.moveTo(pos.x, pos.y);
+    context.moveTo(offsetX, offsetY);
     setIsDrawing(true);
-  }, [getEventPosition]);
+  };
+  
+  const drawMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !contextRef.current) return;
+    const { offsetX, offsetY } = event.nativeEvent;
+    contextRef.current.lineTo(offsetX, offsetY);
+    contextRef.current.stroke();
+  };
 
+  // --- TOUCH EVENT HANDLERS ---
+  const startDrawingTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    const context = contextRef.current;
+    const canvas = canvasRef.current;
+    if (!context || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = event.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    context.beginPath();
+    context.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const drawTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !contextRef.current || !canvasRef.current) return;
+    if (event.cancelable) event.preventDefault();
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = event.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    contextRef.current.lineTo(x, y);
+    contextRef.current.stroke();
+  };
+
+  // --- COMMON FINISH HANDLER ---
   const finishDrawing = useCallback(() => {
     if (!contextRef.current) return;
     contextRef.current.closePath();
     setIsDrawing(false);
   }, []);
 
-  const draw = useCallback((event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !contextRef.current) return;
-    if (event.cancelable) event.preventDefault();
-    const pos = getEventPosition(event);
-    if (!pos) return;
-    contextRef.current.lineTo(pos.x, pos.y);
-    contextRef.current.stroke();
-  }, [isDrawing, getEventPosition]);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     const context = contextRef.current;
     if (canvas && context) {
-      const rect = canvas.getBoundingClientRect();
-      context.clearRect(0, 0, rect.width, rect.height);
+      // Use canvas width/height divided by scale for clearRect
+      const scale = window.devicePixelRatio || 1;
+      context.clearRect(0, 0, canvas.width / scale, canvas.height / scale);
     }
   };
 
@@ -321,7 +339,17 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
             <TrashIcon /> <span className="hidden sm:inline">모두 지우기</span>
           </button>
         </div>
-        <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseUp={finishDrawing} onMouseMove={draw} onMouseLeave={finishDrawing} onTouchStart={startDrawing} onTouchEnd={finishDrawing} onTouchMove={draw} className="w-full h-96 md:h-[500px] bg-white rounded-lg shadow-inner border-2 border-gray-200 cursor-crosshair touch-none"/>
+        <canvas 
+            ref={canvasRef} 
+            onMouseDown={startDrawingMouse} 
+            onMouseUp={finishDrawing} 
+            onMouseMove={drawMouse} 
+            onMouseLeave={finishDrawing} 
+            onTouchStart={startDrawingTouch} 
+            onTouchEnd={finishDrawing} 
+            onTouchMove={drawTouch} 
+            className="w-full h-96 md:h-[500px] bg-white rounded-lg shadow-inner border-2 border-gray-200 cursor-crosshair touch-none"
+        />
       </div>
       <div className="mt-6 flex flex-col sm:flex-row justify-between gap-4">
         <button onClick={onBack} className="flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-full hover:bg-gray-300 transition-all duration-300">
