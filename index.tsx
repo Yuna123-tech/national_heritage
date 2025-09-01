@@ -39,7 +39,7 @@ const PencilIcon = () => (
 
 const DocumentTextIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2-2z" />
     </svg>
 );
 
@@ -159,121 +159,166 @@ interface DrawingViewProps {
 }
 
 const COLORS = ["#111827", "#ef4444", "#3b82f6", "#22c55e", "#f97316", "#eab308", "#a855f7"];
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 5;
+const ZOOM_SENSITIVITY = 0.001;
 
 const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const viewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const dataCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dataContextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const viewContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(COLORS[0]);
   const [brushSize, setBrushSize] = useState(5);
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
 
-  const colorRef = useRef(color);
-  colorRef.current = color;
-  const brushSizeRef = useRef(brushSize);
-  brushSizeRef.current = brushSize;
+  const redraw = useCallback(() => {
+    const viewCanvas = viewCanvasRef.current;
+    const viewCtx = viewContextRef.current;
+    const dataCanvas = dataCanvasRef.current;
+    if (!viewCanvas || !viewCtx || !dataCanvas) return;
+
+    viewCtx.save();
+    viewCtx.fillStyle = '#FFFFFF';
+    viewCtx.fillRect(0, 0, viewCanvas.width, viewCanvas.height);
+    viewCtx.translate(transform.x, transform.y);
+    viewCtx.scale(transform.scale, transform.scale);
+    viewCtx.drawImage(dataCanvas, 0, 0);
+    viewCtx.restore();
+  }, [transform]);
   
   useLayoutEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const viewCanvas = viewCanvasRef.current;
+    if (!viewCanvas) return;
     
-    // Always get a fresh context
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    contextRef.current = context;
+    const viewCtx = viewCanvas.getContext('2d');
+    if (!viewCtx) return;
+    viewContextRef.current = viewCtx;
+
+    const dataCanvas = document.createElement('canvas');
+    dataCanvasRef.current = dataCanvas;
+    const dataCtx = dataCanvas.getContext('2d');
+    if (!dataCtx) return;
+    dataContextRef.current = dataCtx;
 
     const handleResize = () => {
         const scale = window.devicePixelRatio;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * scale;
-        canvas.height = rect.height * scale;
+        const rect = viewCanvas.getBoundingClientRect();
+
+        viewCanvas.width = rect.width * scale;
+        viewCanvas.height = rect.height * scale;
         
-        // Context properties need to be reset after resizing
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            ctx.scale(scale, scale);
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = colorRef.current;
-            ctx.lineWidth = brushSizeRef.current;
-            contextRef.current = ctx; // update the ref with the new context
-        }
+        const oldData = dataCtx.getImageData(0, 0, dataCanvas.width, dataCanvas.height);
+        dataCanvas.width = rect.width * scale;
+        dataCanvas.height = rect.height * scale;
+        dataCtx.putImageData(oldData, 0, 0);
+        
+        dataCtx.lineCap = 'round';
+        dataCtx.strokeStyle = color;
+        dataCtx.lineWidth = brushSize;
+        
+        redraw();
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [redraw, color, brushSize]);
 
   useEffect(() => {
-    if (contextRef.current) {
-      contextRef.current.strokeStyle = color;
-      contextRef.current.lineWidth = brushSize;
+    if (dataContextRef.current) {
+      dataContextRef.current.strokeStyle = color;
+      dataContextRef.current.lineWidth = brushSize;
     }
   }, [color, brushSize]);
 
-  // --- MOUSE EVENT HANDLERS ---
-  const startDrawingMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const context = contextRef.current;
+  useEffect(() => {
+    redraw();
+  }, [redraw]);
+  
+  const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
+    const viewCanvas = viewCanvasRef.current;
+    if (!viewCanvas) return { x: 0, y: 0 };
+    const rect = viewCanvas.getBoundingClientRect();
+    const viewX = clientX - rect.left;
+    const viewY = clientY - rect.top;
+    const scale = window.devicePixelRatio;
+    
+    const dataX = (viewX * scale - transform.x) / transform.scale;
+    const dataY = (viewY * scale - transform.y) / transform.scale;
+    return { x: dataX, y: dataY };
+  }, [transform]);
+
+
+  // --- EVENT HANDLERS ---
+  const handlePointerDown = (clientX: number, clientY: number) => {
+    const context = dataContextRef.current;
     if (!context) return;
-    const canvas = event.currentTarget;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const { x, y } = getCanvasPoint(clientX, clientY);
     context.beginPath();
     context.moveTo(x, y);
     setIsDrawing(true);
   };
   
-  const drawMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !contextRef.current) return;
-    const canvas = event.currentTarget;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    contextRef.current.lineTo(x, y);
-    contextRef.current.stroke();
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    if (!isDrawing || !dataContextRef.current) return;
+    const { x, y } = getCanvasPoint(clientX, clientY);
+    dataContextRef.current.lineTo(x, y);
+    dataContextRef.current.stroke();
+    redraw();
   };
 
-  // --- TOUCH EVENT HANDLERS ---
-  const startDrawingTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
-    const context = contextRef.current;
-    const canvas = canvasRef.current;
-    if (!context || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const touch = event.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    context.beginPath();
-    context.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const drawTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !contextRef.current || !canvasRef.current) return;
-    if (event.cancelable) event.preventDefault();
-    const rect = canvasRef.current.getBoundingClientRect();
-    const touch = event.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    contextRef.current.lineTo(x, y);
-    contextRef.current.stroke();
-  };
-
-  // --- COMMON FINISH HANDLER ---
   const finishDrawing = useCallback(() => {
-    if (!contextRef.current) return;
-    contextRef.current.closePath();
+    if (!dataContextRef.current) return;
+    dataContextRef.current.closePath();
     setIsDrawing(false);
   }, []);
 
+  const startDrawingMouse = (event: React.MouseEvent<HTMLCanvasElement>) => handlePointerDown(event.clientX, event.clientY);
+  const drawMouse = (event: React.MouseEvent<HTMLCanvasElement>) => handlePointerMove(event.clientX, event.clientY);
+  
+  const startDrawingTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    const touch = event.touches[0];
+    handlePointerDown(touch.clientX, touch.clientY);
+  };
+
+  const drawTouch = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    const touch = event.touches[0];
+    handlePointerMove(touch.clientX, touch.clientY);
+  };
+  
+  const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
+      const viewCanvas = viewCanvasRef.current;
+      if (!viewCanvas) return;
+      const rect = viewCanvas.getBoundingClientRect();
+      
+      const delta = -event.deltaY * ZOOM_SENSITIVITY;
+      const { scale: oldScale, x, y } = transform;
+      const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldScale + delta));
+      
+      const scale = window.devicePixelRatio;
+      const mousePoint = {
+        x: (event.clientX - rect.left) * scale,
+        y: (event.clientY - rect.top) * scale
+      };
+
+      const newX = mousePoint.x - (mousePoint.x - x) * (newScale / oldScale);
+      const newY = mousePoint.y - (mousePoint.y - y) * (newScale / oldScale);
+      
+      setTransform({ x: newX, y: newY, scale: newScale });
+  };
 
   const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const context = contextRef.current;
+    const canvas = dataCanvasRef.current;
+    const context = dataContextRef.current;
     if (canvas && context) {
-      // Use canvas width/height divided by scale for clearRect
-      const scale = window.devicePixelRatio || 1;
-      context.clearRect(0, 0, canvas.width / scale, canvas.height / scale);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      redraw();
     }
   };
 
@@ -282,7 +327,7 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
       alert('홍보 계획의 제목을 입력해주세요!');
       return;
     }
-    const canvas = canvasRef.current;
+    const canvas = dataCanvasRef.current;
     if (canvas) {
       const image = canvas.toDataURL('image/png');
       onSave({ type: 'drawing', title, content: image });
@@ -294,21 +339,20 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
       alert('파일로 저장하려면 먼저 제목을 입력해주세요!');
       return;
     }
-    const canvas = canvasRef.current;
-    if (canvas) {
+    const dataCanvas = dataCanvasRef.current;
+    if (dataCanvas) {
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
+        tempCanvas.width = dataCanvas.width;
+        tempCanvas.height = dataCanvas.height;
         const ctx = tempCanvas.getContext('2d');
 
         if (ctx) {
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-            ctx.drawImage(canvas, 0, 0);
+            ctx.drawImage(dataCanvas, 0, 0);
 
-            const scale = window.devicePixelRatio || 1;
-            const fontSize = 16 * scale;
-            const padding = 10 * scale;
+            const fontSize = 32;
+            const padding = 20;
             ctx.font = `bold ${fontSize}px 'Gowun Dodum', sans-serif`;
             ctx.fillStyle = '#111827';
             ctx.textAlign = 'left';
@@ -346,7 +390,7 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
           </button>
         </div>
         <canvas 
-            ref={canvasRef} 
+            ref={viewCanvasRef} 
             onMouseDown={startDrawingMouse} 
             onMouseUp={finishDrawing} 
             onMouseMove={drawMouse} 
@@ -354,6 +398,7 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
             onTouchStart={startDrawingTouch} 
             onTouchEnd={finishDrawing} 
             onTouchMove={drawTouch} 
+            onWheel={handleWheel}
             className="w-full h-96 md:h-[500px] bg-white rounded-lg shadow-inner border-2 border-gray-200 cursor-crosshair touch-none"
         />
       </div>
