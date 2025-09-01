@@ -215,16 +215,22 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
   const startDrawingMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const context = contextRef.current;
     if (!context) return;
-    const { offsetX, offsetY } = event.nativeEvent;
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
     context.beginPath();
-    context.moveTo(offsetX, offsetY);
+    context.moveTo(x, y);
     setIsDrawing(true);
   };
   
   const drawMouse = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !contextRef.current) return;
-    const { offsetX, offsetY } = event.nativeEvent;
-    contextRef.current.lineTo(offsetX, offsetY);
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
   };
 
