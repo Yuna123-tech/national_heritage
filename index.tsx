@@ -345,7 +345,7 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
             <DownloadIcon /> <span className="ml-2">파일로 다운로드</span>
           </button>
           <button onClick={handleSave} className="flex items-center justify-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:scale-105 shadow-md">
-            <SaveIcon /> <span className="ml-2">계획서 제출하기기</span>
+            <SaveIcon /> <span className="ml-2">계획서 제출하기</span>
           </button>
         </div>
       </div>
