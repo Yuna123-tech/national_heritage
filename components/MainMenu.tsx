@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { View } from '../types';
-import { PencilIcon, DocumentTextIcon } from './icons';
+import { View } from '../types.ts';
+import { PencilIcon, DocumentTextIcon } from './icons.tsx';
 
 interface MainMenuProps {
   setView: (view: View) => void;

@@ -1,11 +1,11 @@
 
 import React, { useState, useCallback } from 'react';
-import { Plan, View } from './types';
-import Header from './components/Header';
-import MainMenu from './components/MainMenu';
-import DrawingView from './components/DrawingView';
-import WritingView from './components/WritingView';
-import GalleryView from './components/GalleryView';
+import { Plan, View } from './types.ts';
+import Header from './components/Header.tsx';
+import MainMenu from './components/MainMenu.tsx';
+import DrawingView from './components/DrawingView.tsx';
+import WritingView from './components/WritingView.tsx';
+import GalleryView from './components/GalleryView.tsx';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>(View.MainMenu);

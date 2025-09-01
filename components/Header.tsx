@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { View } from '../types';
-import { HomeIcon, CollectionIcon } from './icons';
+import { View } from '../types.ts';
+import { HomeIcon, CollectionIcon } from './icons.tsx';
 
 interface HeaderProps {
   setView: (view: View) => void;

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
-import { Plan } from '../types';
-import { SaveIcon, BackIcon, TrashIcon, SparklesIcon } from './icons';
+import { Plan } from '../types.ts';
+import { SaveIcon, BackIcon, TrashIcon, SparklesIcon } from './icons.tsx';
 
 interface DrawingViewProps {
   onSave: (plan: Omit<Plan, 'id' | 'createdAt'>) => void;

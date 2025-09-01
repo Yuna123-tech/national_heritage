@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Plan } from '../types';
-import { generateIdea } from '../services/geminiService';
-import { SaveIcon, BackIcon, LightBulbIcon } from './icons';
+import { Plan } from '../types.ts';
+import { generateIdea } from '../services/geminiService.ts';
+import { SaveIcon, BackIcon, LightBulbIcon } from './icons.tsx';
 
 interface WritingViewProps {
   onSave: (plan: Omit<Plan, 'id' | 'createdAt'>) => void;

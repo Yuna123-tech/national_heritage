@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Plan } from '../types';
+import { Plan } from '../types.ts';
 
 interface GalleryViewProps {
   plans: Plan[];
