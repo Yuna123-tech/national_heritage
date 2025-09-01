@@ -167,6 +167,11 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(COLORS[0]);
   const [brushSize, setBrushSize] = useState(5);
+
+  const colorRef = useRef(color);
+  colorRef.current = color;
+  const brushSizeRef = useRef(brushSize);
+  brushSizeRef.current = brushSize;
   
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -182,8 +187,8 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
       canvas.height = rect.height * scale;
       context.scale(scale, scale);
       context.lineCap = 'round';
-      context.strokeStyle = color;
-      context.lineWidth = brushSize;
+      context.strokeStyle = colorRef.current;
+      context.lineWidth = brushSizeRef.current;
     };
 
     handleResize();
@@ -243,7 +248,8 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
     const canvas = canvasRef.current;
     const context = contextRef.current;
     if (canvas && context) {
-      context.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+      const rect = canvas.getBoundingClientRect();
+      context.clearRect(0, 0, rect.width, rect.height);
     }
   };
 
@@ -266,11 +272,31 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
     }
     const canvas = canvasRef.current;
     if (canvas) {
-      const image = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `${title.trim()}.png`;
-      link.href = image;
-      link.click();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const ctx = tempCanvas.getContext('2d');
+
+        if (ctx) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            ctx.drawImage(canvas, 0, 0);
+
+            const scale = window.devicePixelRatio || 1;
+            const fontSize = 16 * scale;
+            const padding = 10 * scale;
+            ctx.font = `bold ${fontSize}px 'Gowun Dodum', sans-serif`;
+            ctx.fillStyle = '#111827';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(title.trim(), padding, padding);
+
+            const image = tempCanvas.toDataURL('image/jpeg', 0.95);
+            const link = document.createElement('a');
+            link.download = `${title.trim()}.jpg`;
+            link.href = image;
+            link.click();
+        }
     }
   };
 
@@ -341,7 +367,8 @@ const WritingView: React.FC<WritingViewProps> = ({ onSave, onBack }) => {
       alert('파일로 저장하려면 내용이 있어야 합니다.');
       return;
     }
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const fileContent = `제목: ${title.trim()}\n\n---\n\n${content}`;
+    const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = `${title.trim()}.txt`;
