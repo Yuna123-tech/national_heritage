@@ -1,7 +1,6 @@
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { GoogleGenAI } from "@google/genai";
 
 // ======== From types.ts ========
 enum View {
@@ -50,6 +49,12 @@ const SaveIcon = () => (
     </svg>
 );
 
+const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
+
 const BackIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -67,48 +72,6 @@ const SparklesIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
     </svg>
 );
-
-
-const LightBulbIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-    </svg>
-);
-
-// ======== From services/geminiService.ts ========
-const generateIdea = async (heritageName: string): Promise<string> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.error("API_KEY environment variable not set");
-    throw new Error("API_KEY environment variable not set");
-  }
-  const ai = new GoogleGenAI({ apiKey });
-  if (!heritageName) {
-    throw new Error("Heritage name is required to generate an idea.");
-  }
-  const prompt = `저는 한국의 초등학교 4학년 학생입니다. 우리나라의 소중한 국가유산인 '${heritageName}'을 친구들에게 쉽고 재미있게 알리고 싶어요. 초등학생 눈높이에 맞는 홍보 아이디어 한 가지를 100자 이내로 간단하게 제안해주세요.`;
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-          temperature: 0.8,
-          topP: 1,
-          topK: 32,
-          maxOutputTokens: 200,
-          thinkingConfig: { thinkingBudget: 100 }
-      },
-    });
-    if (response && response.text) {
-      return response.text;
-    } else {
-      throw new Error("No response text from Gemini API.");
-    }
-  } catch (error) {
-    console.error("Error generating idea from Gemini API:", error);
-    throw new Error("Failed to generate an idea. Please try again later.");
-  }
-};
 
 // ======== From components/Header.tsx ========
 interface HeaderProps {
@@ -132,14 +95,14 @@ const Header: React.FC<HeaderProps> = ({ setView }) => {
           className="mr-2 inline-flex items-center px-4 py-2 bg-sky-500 text-white font-semibold rounded-full hover:bg-sky-600 transition-all duration-300 transform hover:scale-105 shadow-md"
         >
           <HomeIcon />
-          <span className="ml-2">처음으로</span>
+          <span className="ml-2 hidden sm:inline">처음으로</span>
         </button>
         <button
           onClick={() => setView(View.Gallery)}
           className="inline-flex items-center px-4 py-2 bg-orange-500 text-white font-semibold rounded-full hover:bg-orange-600 transition-all duration-300 transform hover:scale-105 shadow-md"
         >
           <CollectionIcon />
-          <span className="ml-2">우리들의 계획 보기</span>
+          <span className="ml-2 hidden sm:inline">우리들의 계획 보기</span>
         </button>
       </nav>
     </header>
@@ -295,13 +258,29 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
       onSave({ type: 'drawing', title, content: image });
     }
   };
+  
+  const handleDownload = () => {
+    if (!title.trim()) {
+      alert('파일로 저장하려면 먼저 제목을 입력해주세요!');
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const image = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `${title.trim()}.png`;
+      link.href = image;
+      link.click();
+    }
+  };
+
 
   return (
     <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-amber-200">
       <h2 className="text-2xl font-bold text-center text-emerald-700 mb-4">그림으로 홍보 계획 세우기</h2>
       <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="홍보 계획 제목 (예: 경복궁 야간개장 포스터)" className="w-full p-3 mb-4 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"/>
       <div className="flex flex-col md:flex-row gap-4 items-start">
-        <div className="w-full md:w-auto flex md:flex-col items-center gap-4 bg-gray-100 p-4 rounded-lg">
+        <div className="w-full md:w-auto flex flex-row flex-wrap justify-center md:flex-col items-center gap-4 bg-gray-100 p-2 md:p-4 rounded-lg">
           <div className="flex flex-row md:flex-col gap-2">
             {COLORS.map(c => (<button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-transform transform hover:scale-110 ${color === c ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`} style={{backgroundColor: c}} />))}
           </div>
@@ -309,22 +288,27 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
             <label htmlFor="brushSize" className="text-sm font-medium">굵기:</label>
             <input type="range" id="brushSize" min="1" max="50" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-24"/>
           </div>
-          <button onClick={() => setColor('#FFFFFF')} className="p-2 bg-white rounded-lg border-2 border-gray-300 hover:bg-gray-200 transition">
-            <SparklesIcon /> <span className="hidden md:inline">지우개</span>
+          <button onClick={() => setColor('#FFFFFF')} className="p-2 bg-white rounded-lg border-2 border-gray-300 hover:bg-gray-200 transition flex items-center gap-1">
+            <SparklesIcon /> <span className="hidden sm:inline">지우개</span>
           </button>
-          <button onClick={clearCanvas} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition">
-            <TrashIcon /> <span className="hidden md:inline">모두 지우기</span>
+          <button onClick={clearCanvas} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition flex items-center gap-1">
+            <TrashIcon /> <span className="hidden sm:inline">모두 지우기</span>
           </button>
         </div>
         <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseUp={finishDrawing} onMouseMove={draw} onMouseLeave={finishDrawing} onTouchStart={startDrawing} onTouchEnd={finishDrawing} onTouchMove={draw} className="w-full h-96 md:h-[500px] bg-white rounded-lg shadow-inner border-2 border-gray-200 cursor-crosshair touch-none"/>
       </div>
-      <div className="mt-6 flex justify-between">
-        <button onClick={onBack} className="flex items-center px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-full hover:bg-gray-300 transition-all duration-300">
+      <div className="mt-6 flex flex-col sm:flex-row justify-between gap-4">
+        <button onClick={onBack} className="flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-full hover:bg-gray-300 transition-all duration-300">
           <BackIcon /> <span className="ml-2">뒤로가기</span>
         </button>
-        <button onClick={handleSave} className="flex items-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:scale-105 shadow-md">
-          <SaveIcon /> <span className="ml-2">저장하기</span>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button onClick={handleDownload} className="flex items-center justify-center px-6 py-2 bg-sky-500 text-white font-semibold rounded-full hover:bg-sky-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+            <DownloadIcon /> <span className="ml-2">파일로 다운로드</span>
+          </button>
+          <button onClick={handleSave} className="flex items-center justify-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+            <SaveIcon /> <span className="ml-2">갤러리에 저장</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -339,8 +323,6 @@ interface WritingViewProps {
 const WritingView: React.FC<WritingViewProps> = ({ onSave, onBack }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSave = () => {
     if (!title.trim() || !content.trim()) {
@@ -349,28 +331,27 @@ const WritingView: React.FC<WritingViewProps> = ({ onSave, onBack }) => {
     }
     onSave({ type: 'text', title, content });
   };
-
-  const handleGetIdea = async () => {
+  
+  const handleDownload = () => {
     if (!title.trim()) {
-      alert('아이디어를 얻으려면 먼저 국가유산 이름을 제목에 입력해주세요.');
+      alert('파일로 저장하려면 먼저 제목을 입력해주세요!');
       return;
     }
-    setIsLoading(true);
-    setError('');
-    try {
-      const idea = await generateIdea(title);
-      setContent(prevContent => prevContent ? `${prevContent}\n\n[AI 추천 아이디어💡]\n${idea}` : `[AI 추천 아이디어💡]\n${idea}`);
-    } catch (e) {
-      console.error(e);
-      if (e instanceof Error) {
-        setError(`아이디어를 가져오는 데 실패했어요. (${e.message})`);
-      } else {
-        setError('아이디어를 가져오는 데 실패했어요. 잠시 후 다시 시도해주세요.');
-      }
-    } finally {
-      setIsLoading(false);
+    if (!content.trim()) {
+      alert('파일로 저장하려면 내용이 있어야 합니다.');
+      return;
     }
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `${title.trim()}.txt`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
+
 
   return (
     <div className="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-amber-200 max-w-3xl mx-auto">
@@ -384,21 +365,19 @@ const WritingView: React.FC<WritingViewProps> = ({ onSave, onBack }) => {
           <label htmlFor="content" className="block text-lg font-semibold text-gray-700 mb-2">홍보 계획 내용</label>
           <textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="어떻게 홍보할지 자세히 적어보세요. (예: 수원 화성 그리기 대회를 열어요!)" rows={10} className="w-full p-3 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"/>
         </div>
-        {error && <p className="text-red-500 text-center">{error}</p>}
-        <div className="text-center">
-            <button onClick={handleGetIdea} disabled={isLoading} className="inline-flex items-center px-6 py-3 bg-yellow-400 text-yellow-900 font-bold rounded-full hover:bg-yellow-500 transition-all duration-300 transform hover:scale-105 shadow-md disabled:bg-gray-300 disabled:cursor-not-allowed">
-                <LightBulbIcon />
-                <span className="ml-2">{isLoading ? '생각 중...' : 'AI에게 홍보 아이디어 얻기'}</span>
-            </button>
-        </div>
       </div>
-      <div className="mt-8 flex justify-between">
-        <button onClick={onBack} className="flex items-center px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-full hover:bg-gray-300 transition-all duration-300">
+      <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
+        <button onClick={onBack} className="flex items-center justify-center px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-full hover:bg-gray-300 transition-all duration-300">
           <BackIcon /> <span className="ml-2">뒤로가기</span>
         </button>
-        <button onClick={handleSave} className="flex items-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:scale-105 shadow-md">
-          <SaveIcon /> <span className="ml-2">저장하기</span>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4">
+            <button onClick={handleDownload} className="flex items-center justify-center px-6 py-2 bg-sky-500 text-white font-semibold rounded-full hover:bg-sky-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+                <DownloadIcon /> <span className="ml-2">파일로 다운로드</span>
+            </button>
+            <button onClick={handleSave} className="flex items-center justify-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+                <SaveIcon /> <span className="ml-2">갤러리에 저장</span>
+            </button>
+        </div>
       </div>
     </div>
   );
@@ -462,6 +441,7 @@ const App: React.FC = () => {
     };
     setPlans(prevPlans => [newPlan, ...prevPlans]);
     setView(View.Gallery);
+    alert('갤러리에 저장되었어요!');
   }, []);
 
   const renderView = () => {
