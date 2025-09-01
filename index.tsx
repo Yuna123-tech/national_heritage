@@ -182,13 +182,11 @@ const DrawingView: React.FC<DrawingViewProps> = ({ onSave, onBack }) => {
     
     context.scale(scale, scale);
     context.lineCap = 'round';
-    context.strokeStyle = color;
-    context.lineWidth = brushSize;
     context.fillStyle = '#FFFFFF';
     context.fillRect(0,0, canvas.width, canvas.height);
 
     contextRef.current = context;
-  }, [color, brushSize]);
+  }, []);
 
   useLayoutEffect(() => {
     prepareCanvas();
