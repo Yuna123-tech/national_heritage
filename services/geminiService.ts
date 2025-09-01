@@ -1,15 +1,16 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-// Ensure the API key is available from environment variables
-const apiKey = process.env.API_KEY;
-if (!apiKey) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey });
-
 export const generateIdea = async (heritageName: string): Promise<string> => {
+  // Ensure the API key is available from environment variables
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("API_KEY environment variable not set");
+    // Throw an error that will be caught by the calling component
+    throw new Error("API_KEY environment variable not set");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
   if (!heritageName) {
     throw new Error("Heritage name is required to generate an idea.");
   }
